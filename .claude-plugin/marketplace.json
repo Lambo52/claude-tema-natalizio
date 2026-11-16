@@ -1,0 +1,5 @@
+{
+  "name": "claude-tema-natalizio",
+  "owner": { "name": "Lambo52" },
+  "plugins": [{ "name": "tema-natalizio", "source": "./" }]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "tema-natalizio",
+  "version": "0.1.0",
+  "description": "Tema natalizio: fascia festiva con conto alla rovescia, auguri e risposte a tema",
+  "types": "./types/index.d.ts"
+}
