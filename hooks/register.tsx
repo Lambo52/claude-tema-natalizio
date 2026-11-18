@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { Register, ThemeSetArgs } from 'claude-code'
+import type { EngineInterface, Register, ThemeSetArgs } from 'claude-code'
 
 const isOn = atom({ plugin: 'tema-natalizio', key: 'isOn' } as const, true)
 // il seme della scena di questa chat: scelto all'apertura, resta lo stesso fino a "/natale nuova"
@@ -414,8 +414,21 @@ const SFONDO: ThemeSetArgs = {
   overrideColorScheme: 'dark',
 }
 
+// Una nuova chat dell'app desktop parte "pre-riscaldata": la sessione si avvia
+// (session.start) mentre l'app non ci è ancora collegata, e la finestra della
+// chat, quando si collega al primo messaggio, non riceve il tema messo prima.
+// Per questo il tema si rimette quando l'app si collega (session.attach) e,
+// per sicurezza, una volta al primo messaggio della chat.
+let rimessoDopoAvvio = false
+
+async function accendi($: EngineInterface) {
+  $.ui.status(`🎄 ${countdown(await $.clock.now())}`)
+  await $.theme.set(SFONDO)
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
+    rimessoDopoAvvio = false
     await $.command.register({
       name: 'natale',
       description: 'Accende o spegne il tema natalizio; "/natale nuova" cambia la scena di questa chat',
@@ -425,8 +438,28 @@ export const register: Register = on => {
       await update($, seme, () => t || 1)
     }
     if (await read($, isOn)) {
-      $.ui.status(`🎄 ${countdown(await $.clock.now())}`)
-      await $.theme.set(SFONDO)
+      await accendi($)
+    }
+
+    return next(e)
+  })
+
+  on('session.attach', async ($, e, next) => {
+    const r = await next(e)
+    if ((e.surface === 'desktop' || e.surface === 'mobile') && (await read($, isOn))) {
+      await accendi($)
+    }
+
+    return r
+  })
+
+  on('prompt.submit', async ($, e, next) => {
+    if (!rimessoDopoAvvio) {
+      rimessoDopoAvvio = true
+      // il tema non deve mai bloccare l'invio del messaggio
+      await (async () => {
+        if (await read($, isOn)) await accendi($)
+      })().catch(() => undefined)
     }
 
     return next(e)
@@ -443,6 +476,7 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'natale' }, async ($, e) => {
+    rimessoDopoAvvio = true
     if (e.args.trim().toLowerCase() === 'nuova') {
       const t = Math.floor(await $.clock.now()) % 2147483647
       await update($, seme, () => t || 1)
